@@ -34,18 +34,29 @@ profile="DEFAULT"
 # ----------------------ENDLESS LOOP TO REQUEST AN ARM INSTANCE---------------------------------------------------------
 
 while true; do
-echo "Requesting new ARM instance with $cpus OCPU(s), $ram GB RAM and $bootVolume GB boot volume..."
+    echo "Requesting new ARM instance with $cpus OCPU(s), $ram GB RAM and $bootVolume GB boot volume..."
 
-    oci compute instance launch --no-retry \
-    --display-name big-arm \
-    --image-id "$IMAGE_ID" \
-    --subnet-id "$SUBNET_ID" \
-    --availability-domain "$AVAILABILITY_DOMAIN" \
-    --shape 'VM.Standard.A1.Flex' \
-    --shape-config "{'ocpus':$cpus,'memoryInGBs':$ram}" \
-    --boot-volume-size-in-gbs "$bootVolume" \
-    --compartment-id "$TENANCY_ID" \
-    --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY"
-    
-    sleep $requestInterval
+    output=$(oci compute instance launch --no-retry \
+        --display-name big-arm \
+        --image-id "$IMAGE_ID" \
+        --subnet-id "$SUBNET_ID" \
+        --availability-domain "$AVAILABILITY_DOMAIN" \
+        --shape 'VM.Standard.A1.Flex' \
+        --shape-config "{'ocpus':$cpus,'memoryInGBs':$ram}" \
+        --boot-volume-size-in-gbs "$bootVolume" \
+        --compartment-id "$TENANCY_ID" \
+        --ssh-authorized-keys-file "$PATH_TO_PUBLIC_SSH_KEY" 2>&1)
+
+    echo "------------------ CLI OUTPUT ------------------"
+    echo "$output"
+    echo "-----------------------------------------------"
+
+    # Retry only if message contains "Out of host capacity."
+    if echo "$output" | grep -q '"message": "Out of host capacity."' ; then
+        echo "Out of host capacity detected. Retrying in $requestInterval seconds..."
+        sleep $requestInterval
+    else
+        echo "Message is different from 'Out of host capacity.'. Exiting loop."
+        break
+    fi
 done
